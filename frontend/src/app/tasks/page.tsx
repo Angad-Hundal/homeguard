@@ -364,7 +364,8 @@ function TaskList({ tasks, appliances, completingId, setCompletingId, completeMu
                   )}
                 </div>
 
-                {completingId === task.id ? (
+                {/* only allow completion form when task is active */}
+                {!isCompleted && completingId === task.id ? (
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
@@ -391,20 +392,28 @@ function TaskList({ tasks, appliances, completingId, setCompletingId, completeMu
                   </div>
                 ) : (
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => handleEdit(task)}
-                      className="flex items-center gap-1.5 bg-blue-500/15 hover:bg-blue-500/25 text-blue-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => setCompletingId(task.id)}
-                      className="flex items-center gap-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Complete
-                    </button>
+                    {/* edit button only for active tasks */}
+                    {!isCompleted && handleEdit && (
+                      <button
+                        onClick={() => handleEdit(task)}
+                        className="flex items-center gap-1.5 bg-blue-500/15 hover:bg-blue-500/25 text-blue-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        Edit
+                      </button>
+                    )}
+
+                    {/* complete button only for active tasks */}
+                    {!isCompleted && (
+                      <button
+                        onClick={() => setCompletingId(task.id)}
+                        className="flex items-center gap-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Complete
+                      </button>
+                    )}
+
                     <button
                       onClick={() => deleteMutation.mutate(task.id)}
                       className="p-1.5 rounded-lg hover:bg-rose-500/15 text-slate-600 hover:text-rose-400 transition-all"
