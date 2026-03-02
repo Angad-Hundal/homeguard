@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from database import get_db
 from models.models import Property, Appliance, MaintenanceTask, MaintenanceLog, Notification
@@ -13,8 +13,8 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/stats", response_model=DashboardStats)
 def get_stats(user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
-    now = datetime.utcnow()
-    year_start = datetime(now.year, 1, 1)
+    now = datetime.now(timezone.utc)
+    year_start = datetime(now.year, 1, 1, tzinfo=timezone.utc)
 
     total_properties = db.query(Property).filter(Property.user_id == user_id).count()
 
@@ -99,7 +99,7 @@ def get_upcoming_tasks(
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     tasks = (
         db.query(MaintenanceTask)
         .join(Appliance)

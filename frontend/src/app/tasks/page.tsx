@@ -39,9 +39,14 @@ export default function TasksPage() {
   const [selectedFrequency, setSelectedFrequency] = useState<number | null>(null);
   const qc = useQueryClient();
 
-  const { data: tasks, isLoading } = useQuery<MaintenanceTask[]>({
-    queryKey: ["tasks"],
-    queryFn: () => getTasks(),
+  const { data: activeTasks, isLoading } = useQuery<MaintenanceTask[]>({
+    queryKey: ["tasks", "active"],
+    queryFn: () => getTasks(undefined, false, true),
+  });
+
+  const { data: completedTasks } = useQuery<MaintenanceTask[]>({
+    queryKey: ["tasks", "completed"],
+    queryFn: () => getTasks(undefined, false, false),
   });
 
   const { data: appliances } = useQuery<Appliance[]>({
@@ -65,6 +70,8 @@ export default function TasksPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["tasks", "active"] });
+      qc.invalidateQueries({ queryKey: ["tasks", "completed"] });
       qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
       qc.invalidateQueries({ queryKey: ["upcoming-tasks"] });
       toast.success("Task scheduled!");
@@ -78,6 +85,8 @@ export default function TasksPage() {
     mutationFn: ({ id, ...data }: any) => completeTask(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["tasks", "active"] });
+      qc.invalidateQueries({ queryKey: ["tasks", "completed"] });
       qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
       qc.invalidateQueries({ queryKey: ["upcoming-tasks"] });
       toast.success("Task marked complete! Next due date updated.");
@@ -90,12 +99,14 @@ export default function TasksPage() {
     mutationFn: deleteTask,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["tasks", "active"] });
+      qc.invalidateQueries({ queryKey: ["tasks", "completed"] });
       toast.success("Task deleted");
     },
   });
 
-  const overdueTasks = tasks?.filter((t) => getTaskUrgency(t.next_due) === "overdue") || [];
-  const activeTasks = tasks?.filter((t) => getTaskUrgency(t.next_due) !== "overdue") || [];
+  const overdueTasks = activeTasks?.filter((t) => getTaskUrgency(t.next_due) === "overdue") || [];
+  const upcomingActiveTasks = activeTasks?.filter((t) => getTaskUrgency(t.next_due) !== "overdue") || [];
 
   return (
     <div className="space-y-8">
@@ -215,7 +226,7 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Active Tasks */}
+      {/* Active/Upcoming Tasks */}
       <div>
         {overdueTasks.length > 0 && (
           <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Upcoming</h2>
@@ -224,15 +235,15 @@ export default function TasksPage() {
           <div className="space-y-3">
             {[...Array(3)].map((_, i) => <div key={i} className="h-20 shimmer rounded-2xl" />)}
           </div>
-        ) : activeTasks.length === 0 && overdueTasks.length === 0 ? (
+        ) : upcomingActiveTasks.length === 0 && overdueTasks.length === 0 ? (
           <div className="text-center py-20 text-slate-600">
             <CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p className="font-medium text-slate-500">No tasks yet</p>
+            <p className="font-medium text-slate-500">No active tasks</p>
             <p className="text-sm mt-1">Add your first maintenance task</p>
           </div>
         ) : (
           <TaskList
-            tasks={activeTasks}
+            tasks={upcomingActiveTasks}
             appliances={appliances}
             completingId={completingId}
             setCompletingId={setCompletingId}
@@ -241,11 +252,29 @@ export default function TasksPage() {
           />
         )}
       </div>
+
+      {/* Completed Tasks */}
+      {completedTasks && completedTasks.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" /> Completed ({completedTasks.length})
+          </h2>
+          <TaskList
+            tasks={completedTasks}
+            appliances={appliances}
+            completingId={completingId}
+            setCompletingId={setCompletingId}
+            completeMutation={completeMutation}
+            deleteMutation={deleteMutation}
+            isCompleted
+          />
+        </div>
+      )}
     </div>
   );
 }
 
-function TaskList({ tasks, appliances, completingId, setCompletingId, completeMutation, deleteMutation }: any) {
+function TaskList({ tasks, appliances, completingId, setCompletingId, completeMutation, deleteMutation, isCompleted = false }: any) {
   const [completeCost, setCompleteCost] = useState<Record<number, string>>({});
 
   const getAppliance = (id: number) => appliances?.find((a: Appliance) => a.id === id);
@@ -323,13 +352,15 @@ function TaskList({ tasks, appliances, completingId, setCompletingId, completeMu
                   </div>
                 ) : (
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => setCompletingId(task.id)}
-                      className="flex items-center gap-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Complete
-                    </button>
+                    {!isCompleted && (
+                      <button
+                        onClick={() => setCompletingId(task.id)}
+                        className="flex items-center gap-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Complete
+                      </button>
+                    )}
                     <button
                       onClick={() => deleteMutation.mutate(task.id)}
                       className="p-1.5 rounded-lg hover:bg-rose-500/15 text-slate-600 hover:text-rose-400 transition-all"

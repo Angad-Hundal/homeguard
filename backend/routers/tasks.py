@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from database import get_db
 from models.models import MaintenanceTask, MaintenanceLog, Appliance, Property
@@ -28,6 +28,7 @@ def get_task_or_404(task_id: int, user_id: int, db: Session) -> MaintenanceTask:
 def list_tasks(
     appliance_id: int = None,
     overdue_only: bool = False,
+    is_active: bool = True,
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
@@ -35,12 +36,12 @@ def list_tasks(
         db.query(MaintenanceTask)
         .join(Appliance)
         .join(Property)
-        .filter(Property.user_id == user_id, MaintenanceTask.is_active == True)
+        .filter(Property.user_id == user_id, MaintenanceTask.is_active == is_active)
     )
     if appliance_id:
         query = query.filter(MaintenanceTask.appliance_id == appliance_id)
     if overdue_only:
-        query = query.filter(MaintenanceTask.next_due < datetime.utcnow())
+        query = query.filter(MaintenanceTask.next_due < datetime.now(timezone.utc))
     return query.order_by(MaintenanceTask.next_due).all()
 
 
@@ -101,7 +102,7 @@ def complete_task(
     db: Session = Depends(get_db),
 ):
     task = get_task_or_404(task_id, user_id, db)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # Create log
     log = MaintenanceLog(
@@ -113,9 +114,9 @@ def complete_task(
     )
     db.add(log)
 
-    # Update task
+    # Mark task as completed (inactive)
     task.last_completed = now
-    task.next_due = now + timedelta(days=task.frequency_days)
+    task.is_active = False
 
     db.commit()
     db.refresh(log)
