@@ -124,7 +124,6 @@ class TaskOut(BaseModel):
 
 # ─── Maintenance Log ─────────────────────────────────────
 class LogCreate(BaseModel):
-    task_id: int
     actual_cost: Optional[float] = None
     notes: Optional[str] = None
     completed_by: Optional[str] = None
@@ -132,6 +131,7 @@ class LogCreate(BaseModel):
 
 class LogOut(LogCreate):
     id: int
+    task_id: int
     completed_at: datetime
 
     class Config:

@@ -39,9 +39,9 @@ export const deleteAppliance = (id: number) =>
   api.delete(`/appliances/${id}`).then((r) => r.data);
 
 // ─── Tasks ─────────────────────────────────────────────
-export const getTasks = (applianceId?: number, overdueOnly = false) =>
+export const getTasks = (applianceId?: number, overdueOnly = false, isActive = true) =>
   api
-    .get(`/tasks/?${applianceId ? `appliance_id=${applianceId}&` : ""}${overdueOnly ? "overdue_only=true" : ""}`)
+    .get(`/tasks/?${applianceId ? `appliance_id=${applianceId}&` : ""}${overdueOnly ? "overdue_only=true&" : ""}is_active=${isActive}`)
     .then((r) => r.data);
 export const createTask = (data: any) => api.post("/tasks/", data).then((r) => r.data);
 export const updateTask = (id: number, data: any) =>

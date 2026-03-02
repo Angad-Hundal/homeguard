@@ -28,6 +28,7 @@ def get_task_or_404(task_id: int, user_id: int, db: Session) -> MaintenanceTask:
 def list_tasks(
     appliance_id: int = None,
     overdue_only: bool = False,
+    is_active: bool = True,
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
@@ -35,7 +36,7 @@ def list_tasks(
         db.query(MaintenanceTask)
         .join(Appliance)
         .join(Property)
-        .filter(Property.user_id == user_id, MaintenanceTask.is_active == True)
+        .filter(Property.user_id == user_id, MaintenanceTask.is_active == is_active)
     )
     if appliance_id:
         query = query.filter(MaintenanceTask.appliance_id == appliance_id)
@@ -113,9 +114,9 @@ def complete_task(
     )
     db.add(log)
 
-    # Update task
+    # Mark task as completed (inactive)
     task.last_completed = now
-    task.next_due = now + timedelta(days=task.frequency_days)
+    task.is_active = False
 
     db.commit()
     db.refresh(log)
