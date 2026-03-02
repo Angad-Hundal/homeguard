@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { getProperties, createProperty, deleteProperty } from "@/lib/api";
+import { getProperties, createProperty, updateProperty, deleteProperty } from "@/lib/api";
 import { Property } from "@/types";
-import { Plus, Home, Trash2, MapPin, Calendar, Maximize } from "lucide-react";
+import { Plus, Home, Trash2, MapPin, Calendar, Maximize, Edit2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { formatDate, PROPERTY_TYPE_LABELS } from "@/lib/utils";
+import { EditModal } from "@/components/edit-modal";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -24,6 +25,7 @@ type FormData = z.infer<typeof schema>;
 
 export default function PropertiesPage() {
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const qc = useQueryClient();
 
   const { data: properties, isLoading } = useQuery<Property[]>({
@@ -31,7 +33,7 @@ export default function PropertiesPage() {
     queryFn: getProperties,
   });
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting }, setValue } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { property_type: "house" },
   });
@@ -48,6 +50,18 @@ export default function PropertiesPage() {
     onError: () => toast.error("Failed to add property"),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, ...data }: any) => updateProperty(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["properties"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      toast.success("Property updated!");
+      reset();
+      setEditingId(null);
+    },
+    onError: () => toast.error("Failed to update property"),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: deleteProperty,
     onSuccess: () => {
@@ -57,6 +71,24 @@ export default function PropertiesPage() {
     },
     onError: () => toast.error("Failed to delete property"),
   });
+
+  const handleEdit = (prop: Property) => {
+    setValue("name", prop.name);
+    setValue("address", prop.address || "");
+    setValue("property_type", prop.property_type);
+    setValue("year_built", prop.year_built || undefined);
+    setValue("square_footage", prop.square_footage || undefined);
+    setEditingId(prop.id);
+    setShowForm(true);
+  };
+
+  const onSubmit = (data: FormData) => {
+    if (editingId) {
+      updateMutation.mutate({ id: editingId, ...data });
+    } else {
+      createMutation.mutate(data);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -84,10 +116,10 @@ export default function PropertiesPage() {
             className="overflow-hidden"
           >
             <form
-              onSubmit={handleSubmit((d) => createMutation.mutate(d))}
+              onSubmit={handleSubmit(onSubmit)}
               className="glass-card p-6 space-y-4"
             >
-              <h2 className="font-semibold text-white mb-4">New Property</h2>
+              <h2 className="font-semibold text-white mb-4">{editingId ? "Edit Property" : "New Property"}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs text-slate-400 mb-1.5 block font-medium uppercase tracking-wider">
@@ -154,11 +186,11 @@ export default function PropertiesPage() {
                   disabled={isSubmitting}
                   className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold px-5 py-2.5 rounded-xl text-sm transition-all disabled:opacity-50"
                 >
-                  Add Property
+                  {editingId ? "Save Changes" : "Add Property"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setShowForm(false); reset(); }}
+                  onClick={() => { setShowForm(false); setEditingId(null); reset(); }}
                   className="px-5 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15] transition-all"
                 >
                   Cancel
@@ -200,12 +232,20 @@ export default function PropertiesPage() {
                     <p className="text-xs text-slate-500">{PROPERTY_TYPE_LABELS[prop.property_type]}</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => deleteMutation.mutate(prop.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-rose-500/15 text-slate-600 hover:text-rose-400 transition-all"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => handleEdit(prop)}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-emerald-500/15 text-slate-600 hover:text-emerald-400 transition-all"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => deleteMutation.mutate(prop.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-rose-500/15 text-slate-600 hover:text-rose-400 transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-2 text-sm">

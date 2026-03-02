@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { getAppliances, getProperties, createAppliance, deleteAppliance } from "@/lib/api";
+import { getAppliances, getProperties, createAppliance, updateAppliance, deleteAppliance } from "@/lib/api";
 import { Appliance, Property } from "@/types";
-import { Plus, Wrench, Trash2, ShieldCheck, DollarSign } from "lucide-react";
+import { Plus, Wrench, Trash2, ShieldCheck, DollarSign, Edit2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -33,6 +33,7 @@ const CATEGORIES = ["hvac", "kitchen", "plumbing", "electrical", "exterior", "la
 export default function AppliancesPage() {
   const [showForm, setShowForm] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const qc = useQueryClient();
 
   const { data: appliances, isLoading } = useQuery<Appliance[]>({
@@ -45,7 +46,7 @@ export default function AppliancesPage() {
     queryFn: getProperties,
   });
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting }, setValue } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { category: "other" },
   });
@@ -67,6 +68,23 @@ export default function AppliancesPage() {
     onError: () => toast.error("Failed to add appliance"),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, ...data }: any) => {
+      const payload = { ...data };
+      if (payload.purchase_date) payload.purchase_date = new Date(payload.purchase_date).toISOString();
+      if (payload.warranty_expiry) payload.warranty_expiry = new Date(payload.warranty_expiry).toISOString();
+      return updateAppliance(id, payload);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["appliances"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      toast.success("Appliance updated!");
+      reset();
+      setEditingId(null);
+    },
+    onError: () => toast.error("Failed to update appliance"),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: deleteAppliance,
     onSuccess: () => {
@@ -75,7 +93,30 @@ export default function AppliancesPage() {
     },
   });
 
-  const filtered = filterCategory
+  const handleEdit = (appliance: Appliance) => {
+    setValue("property_id", appliance.property_id);
+    setValue("name", appliance.name);
+    setValue("brand", appliance.brand || "");
+    setValue("model", appliance.model || "");
+    setValue("serial_number", appliance.serial_number || "");
+    setValue("category", appliance.category);
+    setValue("purchase_date", appliance.purchase_date ? appliance.purchase_date.split("T")[0] : "");
+    setValue("warranty_expiry", appliance.warranty_expiry ? appliance.warranty_expiry.split("T")[0] : "");
+    setValue("purchase_cost", appliance.purchase_cost || undefined);
+    setValue("notes", appliance.notes || "");
+    setEditingId(appliance.id);
+    setShowForm(true);
+  };
+
+  const onSubmit = (data: FormData) => {
+    if (editingId) {
+      updateMutation.mutate({ id: editingId, ...data });
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  const filteredAppliances = filterCategory
     ? appliances?.filter((a) => a.category === filterCategory)
     : appliances;
 
@@ -134,10 +175,10 @@ export default function AppliancesPage() {
             className="overflow-hidden"
           >
             <form
-              onSubmit={handleSubmit((d) => createMutation.mutate(d))}
+              onSubmit={handleSubmit(onSubmit)}
               className="glass-card p-6 space-y-4"
             >
-              <h2 className="font-semibold text-white mb-2">New Appliance</h2>
+              <h2 className="font-semibold text-white mb-2">{editingId ? "Edit Appliance" : "New Appliance"}</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="text-xs text-slate-400 mb-1.5 block font-medium uppercase tracking-wider">Property *</label>
@@ -189,9 +230,9 @@ export default function AppliancesPage() {
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={isSubmitting} className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold px-5 py-2.5 rounded-xl text-sm transition-all disabled:opacity-50">
-                  Add Appliance
+                  {editingId ? "Save Changes" : "Add Appliance"}
                 </button>
-                <button type="button" onClick={() => { setShowForm(false); reset(); }} className="px-5 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15] transition-all">
+                <button type="button" onClick={() => { setShowForm(false); setEditingId(null); reset(); }} className="px-5 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15] transition-all">
                   Cancel
                 </button>
               </div>
@@ -205,14 +246,14 @@ export default function AppliancesPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[...Array(3)].map((_, i) => <div key={i} className="h-48 shimmer rounded-2xl" />)}
         </div>
-      ) : filtered?.length === 0 ? (
+      ) : filteredAppliances?.length === 0 ? (
         <div className="text-center py-20 text-slate-600">
           <Wrench className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="font-medium text-slate-500">No appliances yet</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {filtered?.map((appliance, i) => (
+          {filteredAppliances?.map((appliance: Appliance, i: number) => (
             <motion.div
               key={appliance.id}
               initial={{ opacity: 0, y: 12 }}
@@ -226,12 +267,20 @@ export default function AppliancesPage() {
                     {CATEGORY_LABELS[appliance.category]}
                   </span>
                 </div>
-                <button
-                  onClick={() => deleteMutation.mutate(appliance.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-rose-500/15 text-slate-600 hover:text-rose-400 transition-all"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => handleEdit(appliance)}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-emerald-500/15 text-slate-600 hover:text-emerald-400 transition-all"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => deleteMutation.mutate(appliance.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-rose-500/15 text-slate-600 hover:text-rose-400 transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
               <h3 className="font-semibold text-white mb-1">{appliance.name}</h3>
