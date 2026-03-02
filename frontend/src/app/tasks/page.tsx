@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { getTasks, getAppliances, createTask, updateTask, completeTask, deleteTask } from "@/lib/api";
+import { getTasks, getAppliances, createTask, updateTask, completeTask, deleteTask, getTaskLogs } from "@/lib/api";
 import { MaintenanceTask, Appliance } from "@/types";
 import { Plus, CheckCircle2, Trash2, Calendar, RefreshCw, DollarSign, AlertTriangle, Clock, Edit2 } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -320,113 +320,167 @@ function TaskList({ tasks, appliances, completingId, setCompletingId, completeMu
 
   return (
     <div className="space-y-3">
-      {tasks.map((task: MaintenanceTask, i: number) => {
-        const urgency = getTaskUrgency(task.next_due);
-        const style = urgencyStyles[urgency];
-        const StatusIcon = style.icon;
-        const appliance = getAppliance(task.appliance_id);
-
-        return (
-          <motion.div
-            key={task.id}
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.04 }}
-            className={cn("glass-card p-4 border group", style.border, style.bg)}
-          >
-            <div className="flex items-center gap-4">
-              <StatusIcon className={cn("w-5 h-5 flex-shrink-0", style.iconColor)} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-medium text-white text-sm">{task.title}</p>
-                  {appliance && (
-                    <span className={cn("text-xs px-2 py-0.5 rounded-full border", CATEGORY_COLORS[appliance.category])}>
-                      {CATEGORY_LABELS[appliance.category]}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {appliance?.name} · Every {task.frequency_days} days
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <div className="text-right hidden sm:block">
-                  <div className="flex items-center gap-1 text-xs text-slate-400">
-                    <Calendar className="w-3 h-3" />
-                    {formatDate(task.next_due)}
-                  </div>
-                  {task.estimated_cost && (
-                    <div className="flex items-center gap-1 text-xs text-slate-600 mt-0.5">
-                      <DollarSign className="w-3 h-3" />
-                      {formatCurrency(task.estimated_cost)}
-                    </div>
-                  )}
-                </div>
-
-                {/* only allow completion form when task is active */}
-                {!isCompleted && completingId === task.id ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      placeholder="Actual cost"
-                      step="0.01"
-                      value={completeCost[task.id] || ""}
-                      onChange={(e) => setCompleteCost({ ...completeCost, [task.id]: e.target.value })}
-                      className="w-28 bg-white/[0.05] border border-white/[0.1] rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/50"
-                    />
-                    <button
-                      onClick={() =>
-                        completeMutation.mutate({
-                          id: task.id,
-                          actual_cost: completeCost[task.id] ? parseFloat(completeCost[task.id]) : undefined,
-                        })
-                      }
-                      className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold px-3 py-1.5 rounded-lg text-xs transition-all"
-                    >
-                      Done
-                    </button>
-                    <button onClick={() => setCompletingId(null)} className="text-slate-500 hover:text-white text-xs px-2 py-1.5">
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {/* edit button only for active tasks */}
-                    {!isCompleted && handleEdit && (
-                      <button
-                        onClick={() => handleEdit(task)}
-                        className="flex items-center gap-1.5 bg-blue-500/15 hover:bg-blue-500/25 text-blue-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                        Edit
-                      </button>
-                    )}
-
-                    {/* complete button only for active tasks */}
-                    {!isCompleted && (
-                      <button
-                        onClick={() => setCompletingId(task.id)}
-                        className="flex items-center gap-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Complete
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => deleteMutation.mutate(task.id)}
-                      className="p-1.5 rounded-lg hover:bg-rose-500/15 text-slate-600 hover:text-rose-400 transition-all"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        );
-      })}
+      {tasks.map((task: MaintenanceTask, i: number) => (
+        <TaskItem
+          key={task.id}
+          task={task}
+          index={i}
+          appliance={getAppliance(task.appliance_id)}
+          completingId={completingId}
+          setCompletingId={setCompletingId}
+          completeMutation={completeMutation}
+          deleteMutation={deleteMutation}
+          isCompleted={isCompleted}
+          completeCost={completeCost}
+          setCompleteCost={setCompleteCost}
+          handleEdit={handleEdit}
+        />
+      ))}
     </div>
+  );
+}
+
+interface TaskItemProps {
+  task: MaintenanceTask;
+  index: number;
+  appliance?: Appliance;
+  completingId: number | null;
+  setCompletingId: (id: number | null) => void;
+  completeMutation: any;
+  deleteMutation: any;
+  isCompleted: boolean;
+  completeCost: Record<number, string>;
+  setCompleteCost: React.Dispatch<React.SetStateAction<Record<number, string>>>;
+  handleEdit?: (t: MaintenanceTask) => void;
+}
+
+function TaskItem({
+  task,
+  index,
+  appliance,
+  completingId,
+  setCompletingId,
+  completeMutation,
+  deleteMutation,
+  isCompleted,
+  completeCost,
+  setCompleteCost,
+  handleEdit,
+}: TaskItemProps) {
+  const urgency = getTaskUrgency(task.next_due);
+  const style = urgencyStyles[urgency];
+  const StatusIcon = style.icon;
+
+  const { data: logs } = useQuery({
+    queryKey: ["taskLogs", task.id],
+    queryFn: () => getTaskLogs(task.id),
+    enabled: isCompleted,
+  });
+  const latestCost = logs?.[0]?.actual_cost;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.04 }}
+      className={cn("glass-card p-4 border group", style.border, style.bg)}
+    >
+      <div className="flex items-center gap-4">
+        <StatusIcon className={cn("w-5 h-5 flex-shrink-0", style.iconColor)} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-medium text-white text-sm">{task.title}</p>
+            {appliance && (
+              <span className={cn("text-xs px-2 py-0.5 rounded-full border", CATEGORY_COLORS[appliance.category])}>
+                {CATEGORY_LABELS[appliance.category]}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {appliance?.name} · Every {task.frequency_days} days
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="text-right hidden sm:block">
+            <div className="flex items-center gap-1 text-xs text-slate-400">
+              <Calendar className="w-3 h-3" />
+              {formatDate(task.next_due)}
+            </div>
+            {/* show estimate for active, actual cost for completed */}
+            {!isCompleted && task.estimated_cost && (
+              <div className="flex items-center gap-1 text-xs text-slate-600 mt-0.5">
+                <DollarSign className="w-3 h-3" />
+                {formatCurrency(task.estimated_cost)}
+              </div>
+            )}
+            {isCompleted && latestCost !== undefined && (
+              <div className="flex items-center gap-1 text-xs text-slate-600 mt-0.5">
+                <DollarSign className="w-3 h-3" />
+                {formatCurrency(latestCost)}
+              </div>
+            )}
+          </div>
+
+          {completingId === task.id ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                placeholder="Actual cost"
+                step="0.01"
+                value={completeCost[task.id] || ""}
+                onChange={(e) =>
+                  setCompleteCost({ ...completeCost, [task.id]: e.target.value })
+                }
+                className="w-28 bg-white/[0.05] border border-white/[0.1] rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/50"
+              />
+              <button
+                onClick={() =>
+                  completeMutation.mutate({
+                    id: task.id,
+                    actual_cost: completeCost[task.id] ? parseFloat(completeCost[task.id]) : undefined,
+                  })
+                }
+                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold px-3 py-1.5 rounded-lg text-xs transition-all"
+              >
+                Done
+              </button>
+              <button onClick={() => setCompletingId(null)} className="text-slate-500 hover:text-white text-xs px-2 py-1.5">
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {!isCompleted && handleEdit && (
+                <button
+                  onClick={() => handleEdit(task)}
+                  className="flex items-center gap-1.5 bg-blue-500/15 hover:bg-blue-500/25 text-blue-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  Edit
+                </button>
+              )}
+
+              {!isCompleted && (
+                <button
+                  onClick={() => setCompletingId(task.id)}
+                  className="flex items-center gap-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Complete
+                </button>
+              )}
+
+              <button
+                onClick={() => deleteMutation.mutate(task.id)}
+                className="p-1.5 rounded-lg hover:bg-rose-500/15 text-slate-600 hover:text-rose-400 transition-all"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </motion.div>
   );
 }
