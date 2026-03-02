@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from database import get_db
 from models.models import MaintenanceTask, MaintenanceLog, Appliance, Property
@@ -40,7 +40,7 @@ def list_tasks(
     if appliance_id:
         query = query.filter(MaintenanceTask.appliance_id == appliance_id)
     if overdue_only:
-        query = query.filter(MaintenanceTask.next_due < datetime.utcnow())
+        query = query.filter(MaintenanceTask.next_due < datetime.now(timezone.utc))
     return query.order_by(MaintenanceTask.next_due).all()
 
 
@@ -101,7 +101,7 @@ def complete_task(
     db: Session = Depends(get_db),
 ):
     task = get_task_or_404(task_id, user_id, db)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # Create log
     log = MaintenanceLog(

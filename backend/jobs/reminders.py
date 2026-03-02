@@ -1,6 +1,6 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import resend
 import logging
 
@@ -49,7 +49,7 @@ def check_and_send_reminders():
     """Run daily — check for tasks due soon and send reminders."""
     db: Session = SessionLocal()
     try:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         tasks = (
             db.query(MaintenanceTask)
