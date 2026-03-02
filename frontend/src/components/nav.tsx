@@ -20,9 +20,10 @@ export const navItems: NavItem[] = [
 
 interface NavProps {
   pathname: string;
+  collapsed?: boolean;
 }
 
-export function Nav({ pathname }: NavProps) {
+export function Nav({ pathname, collapsed = false }: NavProps) {
   return (
     <nav className="flex-1 px-3 py-4 space-y-0.5">
       {navItems.map((item) => {
@@ -32,14 +33,15 @@ export function Nav({ pathname }: NavProps) {
             <div
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                collapsed && "justify-center",
                 active
                   ? "bg-emerald-500/15 text-emerald-400"
                   : "text-slate-500 hover:text-slate-300 hover:bg-white/[0.04]"
               )}
             >
               <item.icon className="w-4 h-4 flex-shrink-0" />
-              {item.label}
-              {active && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
+              {!collapsed && item.label}
+              {!collapsed && active && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
             </div>
           </Link>
         );
