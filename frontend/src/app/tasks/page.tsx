@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { getTasks, getAppliances, createTask, completeTask, deleteTask } from "@/lib/api";
+import { getTasks, getAppliances, createTask, updateTask, completeTask, deleteTask } from "@/lib/api";
 import { MaintenanceTask, Appliance } from "@/types";
-import { Plus, CheckCircle2, Trash2, Calendar, RefreshCw, DollarSign, AlertTriangle, Clock } from "lucide-react";
+import { Plus, CheckCircle2, Trash2, Calendar, RefreshCw, DollarSign, AlertTriangle, Clock, Edit2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -36,6 +36,7 @@ const urgencyStyles = {
 export default function TasksPage() {
   const [showForm, setShowForm] = useState(false);
   const [completingId, setCompletingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [selectedFrequency, setSelectedFrequency] = useState<number | null>(null);
   const qc = useQueryClient();
 
@@ -81,6 +82,23 @@ export default function TasksPage() {
     onError: () => toast.error("Failed to create task"),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, ...data }: any) => {
+      const payload = { ...data, next_due: new Date(data.next_due).toISOString() };
+      return updateTask(id, payload);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      qc.invalidateQueries({ queryKey: ["upcoming-tasks"] });
+      toast.success("Task updated!");
+      reset();
+      setEditingId(null);
+      setShowForm(false);
+    },
+    onError: () => toast.error("Failed to update task"),
+  });
+
   const completeMutation = useMutation({
     mutationFn: ({ id, ...data }: any) => completeTask(id, data),
     onSuccess: () => {
@@ -94,6 +112,25 @@ export default function TasksPage() {
     },
     onError: () => toast.error("Failed to complete task"),
   });
+  const handleEdit = (task: MaintenanceTask) => {
+    setValue("appliance_id", task.appliance_id);
+    setValue("title", task.title);
+    setValue("description", task.description || "");
+    setValue("frequency_days", task.frequency_days);
+    setValue("next_due", task.next_due.split("T")[0]);
+    setValue("estimated_cost", task.estimated_cost || undefined);
+    setValue("reminder_days_before", task.reminder_days_before);
+    setEditingId(task.id);
+    setShowForm(true);
+  };
+
+  const onSubmit = (data: FormData) => {
+    if (editingId) {
+      updateMutation.mutate({ id: editingId, ...data });
+    } else {
+      createMutation.mutate(data);
+    }
+  };
 
   const deleteMutation = useMutation({
     mutationFn: deleteTask,
@@ -133,8 +170,8 @@ export default function TasksPage() {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <form onSubmit={handleSubmit((d) => createMutation.mutate(d))} className="glass-card p-6 space-y-4">
-              <h2 className="font-semibold text-white mb-2">New Maintenance Task</h2>
+            <form onSubmit={handleSubmit(onSubmit)} className="glass-card p-6 space-y-4">
+              <h2 className="font-semibold text-white mb-2">{editingId ? "Edit Task" : "New Maintenance Task"}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs text-slate-400 mb-1.5 block font-medium uppercase tracking-wider">Appliance *</label>
@@ -198,9 +235,9 @@ export default function TasksPage() {
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={isSubmitting} className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold px-5 py-2.5 rounded-xl text-sm transition-all disabled:opacity-50">
-                  Schedule Task
+                  {editingId ? "Save Changes" : "Schedule Task"}
                 </button>
-                <button type="button" onClick={() => { setShowForm(false); reset(); }} className="px-5 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15] transition-all">
+                <button type="button" onClick={() => { setShowForm(false); setEditingId(null); reset(); }} className="px-5 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15] transition-all">
                   Cancel
                 </button>
               </div>
@@ -222,6 +259,7 @@ export default function TasksPage() {
             setCompletingId={setCompletingId}
             completeMutation={completeMutation}
             deleteMutation={deleteMutation}
+            handleEdit={handleEdit}
           />
         </div>
       )}
@@ -249,6 +287,7 @@ export default function TasksPage() {
             setCompletingId={setCompletingId}
             completeMutation={completeMutation}
             deleteMutation={deleteMutation}
+            handleEdit={handleEdit}
           />
         )}
       </div>
@@ -274,7 +313,7 @@ export default function TasksPage() {
   );
 }
 
-function TaskList({ tasks, appliances, completingId, setCompletingId, completeMutation, deleteMutation, isCompleted = false }: any) {
+function TaskList({ tasks, appliances, completingId, setCompletingId, completeMutation, deleteMutation, isCompleted = false, handleEdit }: any) {
   const [completeCost, setCompleteCost] = useState<Record<number, string>>({});
 
   const getAppliance = (id: number) => appliances?.find((a: Appliance) => a.id === id);
@@ -352,15 +391,20 @@ function TaskList({ tasks, appliances, completingId, setCompletingId, completeMu
                   </div>
                 ) : (
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {!isCompleted && (
-                      <button
-                        onClick={() => setCompletingId(task.id)}
-                        className="flex items-center gap-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Complete
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleEdit(task)}
+                      className="flex items-center gap-1.5 bg-blue-500/15 hover:bg-blue-500/25 text-blue-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setCompletingId(task.id)}
+                      className="flex items-center gap-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Complete
+                    </button>
                     <button
                       onClick={() => deleteMutation.mutate(task.id)}
                       className="p-1.5 rounded-lg hover:bg-rose-500/15 text-slate-600 hover:text-rose-400 transition-all"
