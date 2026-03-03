@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, LayoutDashboard, Home, Wrench, ClipboardList, Bell } from "lucide-react";
+import { ChevronRight, LayoutDashboard, Home, Wrench, ClipboardList, Bell, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type NavItem = {
@@ -15,6 +15,7 @@ export const navItems: NavItem[] = [
   { href: "/properties", icon: Home, label: "Properties" },
   { href: "/appliances", icon: Wrench, label: "Appliances" },
   { href: "/tasks", icon: ClipboardList, label: "Tasks" },
+  { href: "/warranties", icon: Shield, label: "Warranties" },
   { href: "/notifications", icon: Bell, label: "Notifications" },
 ];
 
