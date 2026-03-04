@@ -1,0 +1,11 @@
+cd backend
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate    # Mac/Linux
+# or: venv\Scripts\activate  # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+uvicorn main:app --reload --port 8000

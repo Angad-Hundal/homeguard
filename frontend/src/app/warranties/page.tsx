@@ -31,7 +31,7 @@ const getWarrantyStatus = (expiryDate?: string) => {
 export default function WarrantiesPage() {
   const { data: appliances, isLoading } = useQuery<Appliance[]>({
     queryKey: ["appliances"],
-    queryFn: getAppliances,
+    queryFn: () => getAppliances(),
   });
 
   // Filter appliances with warranty data
