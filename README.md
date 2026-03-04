@@ -343,31 +343,6 @@ Full interactive documentation available at `/docs` when running locally.
 
 ---
 
-## Deployment
-
-### Services Used
-
-| Service | Role | Free Tier |
-|---|---|---|
-| [Vercel](https://vercel.com) | Frontend hosting | Generous free tier |
-| [Railway](https://railway.app) | Backend hosting | $5 credit/month |
-| [Neon](https://neon.tech) | PostgreSQL database | 0.5 GB storage |
-| [Resend](https://resend.com) | Transactional email | 3,000 emails/month |
-| [Google Cloud](https://console.cloud.google.com) | OAuth credentials | Free forever |
-
-### Steps
-
-1. Push code to GitHub
-2. Create a Neon database and copy the connection string
-3. Deploy backend to Railway — set root directory to `/backend`, add all env vars
-4. Deploy frontend to Vercel — set root directory to `/frontend`, add all env vars
-5. Add your Vercel production URL to Google Cloud Console as an authorized redirect URI:
-   `https://your-app.vercel.app/api/auth/callback/google`
-
-See `SETUP.md` for the detailed step-by-step guide.
-
----
-
 ## Auth Flow
 
 ```
